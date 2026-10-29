@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Go Up - Tom Western</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body { 
+            margin: 0; background: #1c1410; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        #gameContainer {
+            position: relative; width: 400px; height: 650px;
+            background: #f7d794; border: 6px solid #8B4513; border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6), inset 0 0 40px rgba(139,69,19,0.3);
+            overflow: hidden;
+        }
+        canvas { display: block; background: linear-gradient(to bottom, #ffeaa7, #fab1a0); }
+        
+        /* Меню режимов и комнат */
+        .overlay-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(44, 24, 16, 0.85); backdrop-filter: blur(5px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; color: #fff; text-align: center; padding: 20px;
+        }
+        .overlay-screen h1 { font-size: 32px; margin-bottom: 10px; color: #f1c40f; text-shadow: 2px 2px #c0392b; }
+        .overlay-screen p { font-size: 14px; margin-bottom: 20px; color: #ecf0f1; max-width: 280px; }
+        
+        .menu-btn {
+            background: linear-gradient(to bottom, #f39c12, #d35400);
+            border: 3px solid #f1c40f; color: white; padding: 12px 28px;
+            font-size: 20px; font-weight: bold; border-radius: 25px; cursor: pointer;
+            box-shadow: 0 6px #a04000, 0 10px 15px rgba(0,0,0,0.3);
+            margin: 8px; width: 220px; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .menu-btn:active { transform: translateY(4px); box-shadow: 0 2px #a04000; }
+        .menu-btn.secondary { background: linear-gradient(to bottom, #3498db, #2980b9); border-color: #5dade2; box-shadow: 0 6px #1b4f72; }
+        .menu-btn.secondary:active { box-shadow: 0 2px #1b4f72; }
+
+        input.room-input {
+            padding: 10px 15px; font-size: 22px; text-align: center; width: 160px;
+            border-radius: 12px; border: 3px solid #f1c40f; background: #fff3cd; color: #2c3e50;
+            font-weight: bold; letter-spacing: 4px; margin-bottom: 15px; outline: none;
+        }
+
+        /* HUD интерфейс игры */
+        #hud {
+            position: absolute; top: 10px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; padding: 0 15px;
+            pointer-events: none; z-index: 10;
+        }
+        .hud-panel {
+            background: rgba(255, 248, 220, 0.9); border: 2px solid #8B4513; border-radius: 20px;
+            padding: 4px 12px; font-size: 16px; font-weight: bold; color: #5c3a21;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 6px;
+        }
+        .hud-btn {
+            background: #e74c3c; border: 2px solid #fff; color: white; width: 32px; height: 32px;
+            border-radius: 50%; font-weight: bold; cursor: pointer; pointer-events: auto;
+            display: flex; justify-content: center; align-items: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <!-- Главное меню -->
+    <div id="mainMenu" class="overlay-screen">
+        <h1>ТОЛЬКО ВВЕРХ!</h1>
+        <p>Прыгай по плиткам каньона, избегай шипов и обгоняй соперника!</p>
+        <button class="menu-btn" onclick="startSolo()">СОЛО</button>
+        <button class="menu-btn secondary" onclick="showLobbyMenu()">ДУЭЛЬ</button>
+    </div>
+
+    <!-- Лобби Дуэли -->
+    <div id="lobbyMenu" class="overlay-screen" style="display: none;">
+        <h1>СЕТЕВАЯ ДУЭЛЬ</h1>
+        <p>Введите 4-значный код комнаты для подключения к другу:</p>
+        <input type="text" id="roomCodeInput" class="room-input" maxlength="4" placeholder="1234">
+        <br>
+        <button class="menu-btn" onclick="joinRoom()">ВОЙТИ В КОМНАТУ</button>
+        <button class="menu-btn secondary" onclick="backToMain()">НАЗАД</button>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" style="display: none;">
+        <div class="hud-panel">🏆 <span id="scoreVal">0</span></div>
+        <div class="hud-panel" id="statusPanel" style="display:none; font-size: 12px; color: #27ae60;">Ожидание соперника...</div>
+        <button class="hud-btn" onclick="backToMain()" title="Выход">✕</button>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="650"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let gameMode = 'solo'; // 'solo' или 'duo'
+let ws = null;
+let roomCode = '';
+let isConnected = false;
+
+// Состояние игрока (Том)
+let tom = {
+    x: 200, y: 520, radius: 22,
+    vx: 0, vy: 0,
+    isFlying: false, isStuck: true,
+    shield: false
+};
+
+// Состояние соперника в дуэли (чуть прозрачнее)
+let rival = {
+    x: 200, y: 520, radius: 22,
+    score: 0, isAlive: true,
+    isStuck: true
+};
+
+let cameraY = 0;
+let targetCameraY = 0;
+let score = 0;
+let isDragging = false;
+let startDragX = 0, startDragY = 0;
+let currentDragX = 0, currentDragY = 0;
+
+let currentPin = { x: 200, y: 520, type: 'blue', timer: 0, maxTimer: 90 };
+let pins = [];
+let obstacles = [];
+let particles = [];
+
+// Генерация мира
+function initLevel() {
+    pins = [
+        { x: 200, y: 520, type: 'blue', timer: 0, maxTimer: 90 },
+        { x: 120, y: 380, type: 'blue', timer: 0, maxTimer: 90 },
+        { x: 280, y: 240, type: 'blue', timer: 0, maxTimer: 90 }
+    ];
+    obstacles = [];
+    generateNextChunk(-200);
+}
+
+function generateNextChunk(minY) {
+    let topY = pins[pins.length - 1] ? pins[pins.length - 1].y : 520;
+    while (topY > minY - 800) {
+        topY -= 130 + Math.random() * 40;
+        let x = 80 + Math.random() * 240;
+        
+        let r = Math.random();
+        let type = 'blue';
+        if (r < 0.25) type = 'rail';
+        else if (r < 0.45) type = 'red';
+        else if (r < 0.6) type = 'orange';
+
+        pins.push({ x: x, y: topY, type: type, timer: Math.random() * 60, maxTimer: 90, dir: 1 });
+
+        // Препятствия на краях (наполовину торчащие шипастые колеса или блоки)
+        if (Math.random() < 0.4) {
+            let side = Math.random() < 0.5 ? 'left' : 'right';
+            let obsX = side === 'left' ? -20 : canvas.width + 20;
+            let obsType = Math.random() < 0.6 ? 'spiked_wheel' : 'wood_triangle';
+            obstacles.push({ x: obsX, y: topY + 40, type: obsType, radius: 45 });
+        }
+    }
+}
+
+// Сетевые функции (WebSocket Эхо для демо комнат)
+function showLobbyMenu() {
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('lobbyMenu').style.display = 'flex';
+}
+
+function backToMain() {
+    if (ws) ws.close();
+    isConnected = false;
+    document.getElementById('lobbyMenu').style.display = 'none';
+    document.getElementById('mainMenu').style.display = 'flex';
+    document.getElementById('hud').style.display = 'none';
+    gameMode = 'solo';
+}
+
+function startSolo() {
+    gameMode = 'solo';
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('statusPanel').style.display = 'none';
+    resetGame();
+}
+
+function joinRoom() {
+    let code = document.getElementById('roomCodeInput').value.trim();
+    if (code.length < 4) {
+        alert('Введите 4-значный код комнаты!');
+        return;
+    }
+    roomCode = code;
+    gameMode = 'duo';
+    
+    document.getElementById('lobbyMenu').style.display = 'none';
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('statusPanel').style.display = 'block';
+    document.getElementById('statusPanel').innerText = 'Подключение к комнате ' + roomCode + '...';
+
+    initWebSocket();
+    resetGame();
+}
+
+function initWebSocket() {
+    try {
+        ws = new WebSocket('wss://echo.websocket.events');
+        ws.onopen = () => {
+            isConnected = true;
+            document.getElementById('statusPanel').innerText = 'Дуэль активна (Код: ' + roomCode + ')';
+            ws.send(JSON.stringify({ room: roomCode, type: 'join', score: 0, x: tom.x, y: tom.y }));
+        };
+        ws.onmessage = (event) => {
+            try {
+                let data = JSON.parse(event.data);
+                if (data && data.room === roomCode && data.score !== undefined) {
+                    rival.x = data.x;
+                    rival.y = data.y;
+                    rival.score = data.score;
+                }
+            } catch(e) {}
+        };
+        ws.onerror = () => {
+            document.getElementById('statusPanel').innerText = 'Ошибка сети (одиночный режим синхронизации)';
+        };
+    } catch(e) {
+        document.getElementById('statusPanel').innerText = 'Нет сети';
+    }
+}
+
+function sendNetworkData() {
+    if (gameMode === 'duo' && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ room: roomCode, score: score, x: tom.x, y: tom.y }));
+    }
+}
+
+function resetGame() {
+    tom.x = 200; tom.y = 520;
+    tom.vx = 0; tom.vy = 0;
+    tom.isFlying = false; tom.isStuck = true;
+    tom.shield = false;
+    score = 0;
+    cameraY = 0;
+    targetCameraY = 0;
+    rival.score = 0;
+    rival.y = 520;
+    initLevel();
+}
+
+// Управление мышь/тач
+canvas.addEventListener("mousedown", (e) => {
+    if (tom.isStuck) {
+        let rect = canvas.getBoundingClientRect();
+        let mx = e.clientX - rect.left;
+        let my = e.clientY - rect.top;
+        if (Math.hypot(mx - tom.x, my - (tom.y - cameraY)) < tom.radius + 15) {
+            isDragging = true;
+            startDragX = mx; startDragY = my;
+            currentDragX = mx; currentDragY = my;
+        }
+    }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+        let rect = canvas.getBoundingClientRect();
+        currentDragX = e.clientX - rect.left;
+        currentDragY = e.clientY - rect.top;
+    }
+});
+
+canvas.addEventListener("mouseup", () => {
+    if (isDragging) {
+        isDragging = false;
+        tom.isStuck = false;
+        tom.isFlying = true;
+        let dx = startDragX - currentDragX;
+        let dy = startDragY - currentDragY;
+        tom.vx = dx * 0.14;
+        tom.vy = dy * 0.14;
+    }
+});
+
+// Игровой цикл
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+// Плавная камера за Томом
+    targetCameraY = tom.y - 420;
+    if (targetCameraY > 0) targetCameraY = 0;
+    cameraY += (targetCameraY - cameraY) * 0.1;
+
+    ctx.save();
+    ctx.translate(0, cameraY);
+
+    // Рисуем каньон фон и стены
+    drawCanyonBackground();
+
+    // Генерация новых пинов по мере подъема
+    if (pins[pins.length - 1].y > tom.y - 700) {
+        generateNextChunk(pins[pins.length - 1].y);
+    }
+
+    // Обновление и отрисовка штифтов
+    pins.forEach((pin, index) => {
+        if (pin.type === 'rail') {
+            pin.x += 1.2 * pin.dir;
+            if (pin.x < 60 || pin.x > 340) pin.dir *= -1;
+        }
+        if (pin.type === 'orange') {
+            pin.timer++;
+            if (pin.timer > pin.maxTimer) pin.timer = 0;
+        }
+
+        // Рендер плитки с лапкой
+        ctx.fillStyle = pin.type === 'red' ? '#c0392b' : (pin.type === 'orange' && pin.timer > pin.maxTimer / 2 ? 'rgba(230,126,34,0.3)' : '#d35400');
+        ctx.fillRect(pin.x - 26, pin.y - 26, 52, 52);
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(pin.x - 20, pin.y - 20, 40, 40);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(pin.x, pin.y - 4, 8, 0, Math.PI * 2);
+        ctx.arc(pin.x - 10, pin.y - 12, 4, 0, Math.PI * 2);
+        ctx.arc(pin.x + 10, pin.y - 12, 4, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Отрисовка препятствий (только с шипами наносят урон)
+    obstacles.forEach(obs => {
+        ctx.save();
+        ctx.translate(obs.x, obs.y);
+        if (obs.type === 'spiked_wheel') {
+            ctx.rotate(Date.now() * 0.002);
+            ctx.fillStyle = '#7f8c8d';
+            ctx.beginPath(); ctx.arc(0, 0, obs.radius, 0, Math.PI * 2); ctx.fill();
+            // Шипы по кругу
+            for (let i = 0; i < 8; i++) {
+                ctx.rotate(Math.PI / 4);
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath(); ctx.moveTo(0, -obs.radius); ctx.lineTo(-8, -obs.radius - 12); ctx.lineTo(8, -obs.radius - 12); ctx.fill();
+            }
+        } else {
+            ctx.fillStyle = '#d35400';
+            ctx.beginPath(); ctx.moveTo(-30, 30); ctx.lineTo(0, -40); ctx.lineTo(30, 30); ctx.fill();
+            ctx.fillStyle = '#e74c3c'; // Шипы на треугольнике
+            ctx.beginPath(); ctx.moveTo(-15, -10); ctx.lineTo(0, -30); ctx.lineTo(15, -10); ctx.fill();
+        }
+        ctx.restore();
+    });
+
+    // Полет и физика Тома
+    if (tom.isFlying) {
+        tom.vy += 0.35; // гравитация
+        tom.x += tom.vx;
+        tom.y += tom.vy;
+
+        // Рикошет от стен
+        if (tom.x - tom.radius < 20) { tom.x = 20; tom.vx *= -0.7; }
+        if (tom.x + tom.radius > canvas.width - 20) { tom.x = canvas.width - 20; tom.vx *= -0.7; }
+
+        // Проверка примагничивания к пинам
+        if (tom.vy > 0) {
+            pins.forEach((pin, idx) => {
+                if (pin.type === 'orange' && pin.timer > pin.maxTimer / 2) return; // пролетает сквозь выключенный
+                let dist = Math.hypot(tom.x - pin.x, tom.y - pin.y);
+                if (dist < 32 && !tom.isStuck) {
+                    tom.isStuck = true;
+                    tom.isFlying = false;
+                    tom.x = pin.x;
+                    tom.y = pin.y;
+                    tom.vx = 0; tom.vy = 0;
+                    currentPin = pin;
+                    score++;
+                    document.getElementById('scoreVal').innerText = score;
+                    sendNetworkData();
+
+                    // Если красный пин - исчезает
+                    if (pin.type === 'red') {
+                        pins.splice(idx, 1);
+                    }
+                }
+            });
+        }
+
+        // Проверка столкновения с шипами
+        obstacles.forEach(obs => {
+            if (Math.hypot(tom.x - obs.x, tom.y - obs.y) < obs.radius + tom.radius - 10) {
+                if (tom.shield) { tom.shield = false; }
+                else { resetGame(); }
+            }
+        });
+
+        if (tom.y > 650 - cameraY) {
+            resetGame();
+        }
+    }
+
+    // Отрисовка эластичных лап, когда висит
+    if (tom.isStuck) {
+        ctx.strokeStyle = '#5c5c5c';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(currentPin.x - 6, currentPin.y + 10);
+        ctx.lineTo(tom.x - 6, tom.y - 12);
+        ctx.moveTo(currentPin.x + 6, currentPin.y + 10);
+        ctx.lineTo(tom.x + 6, tom.y - 12);
+        ctx.stroke();
+    }
+
+    // Линия натяжения рогатки
+    if (isDragging) {
+        ctx.strokeStyle = "rgba(231, 76, 60, 0.7)";
+        ctx.lineWidth = 4;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(tom.x, tom.y);
+        ctx.lineTo(tom.x + (startDragX - currentDragX), tom.y + (startDragY - currentDragY));
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Рендер Говорящего Тома
+    drawTom(tom.x, tom.y, false);
+
+    // Рендер соперника в дуэли (полупрозрачный)
+    if (gameMode === 'duo') {
+        drawTom(rival.x, rival.y + cameraY - cameraY, true); // дублируем анимацию соперника
+    }
+
+    ctx.restore();
+    requestAnimationFrame(update);
+}
+
+// Отрисовка кота Тома с милой мордочкой
+function drawTom(x, y, isRival) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (isRival) ctx.globalAlpha = 0.45; // Прозрачный соперник
+
+ж    // Тень под котом
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.ellipse(0, 24, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Тело
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = '#2c3e50';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 4, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    // Животик
+    ctx.fillStyle = '#ecf0f1';
+    ctx.beginPath(); ctx.ellipse(0, 8, 10, 10, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Голова
+    ctx.beginPath(); ctx.arc(0, -6, 20, 0, Math.PI * 2);
+    ctx.fillStyle = '#7f8c8d'; ctx.fill(); ctx.stroke();
+
+    // Ушки
+    ctx.beginPath();
+    ctx.moveTo(-16, -18); ctx.lineTo(-22, -30); ctx.lineTo(-8, -22); ctx.fill(); ctx.stroke();
+    ctx.moveTo(16, -18); ctx.lineTo(22, -30); ctx.lineTo(8, -22); ctx.fill(); ctx.stroke();
+    // Внутренности ушек
+    ctx.fillStyle = '#ff7675';
+    ctx.beginPath(); ctx.moveTo(-14, -20); ctx.lineTo(-18, -26); ctx.lineTo(-10, -22); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(14, -20); ctx.lineTo(18, -26); ctx.lineTo(10, -22); ctx.fill();
+
+    // Глаза (изумрудные)
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(-7, -8, 5, 0, Math.PI * 2); ctx.arc(7, -8, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(-7, -8, 2.5, 0, Math.PI * 2); ctx.arc(7, -8, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    // Носик и улыбка
+    ctx.fillStyle = '#ff7675';
+    ctx.beginPath(); ctx.arc(0, -4, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, -3, 5, 0, Math.PI); ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawCanyonBackground() {
+    ctx.fillStyle = '#f5cd79';
+    ctx.fillRect(0, cameraY - 1000, canvas.width, 3000);
+    // Стены вестерн-каньона по бокам
+    ctx.fillStyle = '#e1b12c';
+    ctx.fillRect(0, cameraY - 1000, 20, 3000);
+    ctx.fillRect(canvas.width - 20, cameraY - 1000, 20, 3000);
+}
+
+initLevel();
+update();
+</script>
+
+</body>
+</html>
