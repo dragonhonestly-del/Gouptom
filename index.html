@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ТОЛЬКО ВВЕРХ! — Говорящий Том</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@600;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #2b1810;
+            font-family: 'Rubik', sans-serif;
+            touch-action: none;
+        }
+        #gameWrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #5c3a21 0%, #1e1008 100%);
+        }
+        #canvasContainer {
+            position: relative;
+            width: 100%;
+            max-width: 460px;
+            height: 100%;
+            max-height: 920px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 0 3px #3e2413;
+            overflow: hidden;
+            background: #fce1a6;
+        }
+        @media (min-width: 500px) {
+            #canvasContainer {
+                border-radius: 28px;
+                height: 96vh;
+            }
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Оригинальные овальные плашки HUD как на скриншотах */
+        .pill-white {
+            background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+            border: 3px solid #1e1b18;
+            border-radius: 9999px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.28), inset 0 2px 0 #ffffff;
+        }
+        .pill-green {
+            background: linear-gradient(180deg, #d9f99d 0%, #84cc16 100%);
+            border: 3px solid #1e1b18;
+            border-radius: 9999px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.28), inset 0 2px 0 #ecfccb;
+        }
+        .icon-btn {
+            background: #1e1b18;
+            border: 2.5px solid #ffffff;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.35);
+            transition: transform 0.08s ease;
+        }
+        .icon-btn:active {
+            transform: scale(0.92) translateY(2px);
+        }
+        .btn-western {
+            background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+            border: 4px solid #3e2009;
+            box-shadow: 0 6px 0 #3e2009, 0 12px 24px rgba(0,0,0,0.45), inset 0 3px 0 #fef08a;
+            text-shadow: 0 2px 0 #78350f;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-western:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #3e2009, 0 6px 12px rgba(0,0,0,0.45), inset 0 2px 0 #fef08a;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameWrapper">
+    <div id="canvasContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Верхний HUD один-в-один как на скриншотах -->
+        <div class="absolute top-3.5 left-3 right-3 flex justify-between items-center pointer-events-none z-10">
+            <div class="flex items-center gap-2 sm:gap-2.5">
+                <!-- Текущий счёт с серебряным кубком -->
+                <div class="pill-white relative pl-3.5 pr-8 py-1 min-w-[92px] sm:min-w-[104px] flex items-center justify-center">
+                    <span id="scoreVal" class="text-slate-900 font-black text-base sm:text-lg tracking-tight leading-none">0</span>
+                    <div class="absolute -right-1.5 -top-1.5 w-8 h-8 flex items-center justify-center drop-shadow">
+                        <!-- SVG Серебряного кубка -->
+                        <svg viewBox="0 0 36 36" class="w-7 h-7">
+                            <path d="M9 6h18v9c0 5-4 9-9 9s-9-4-9-9V6z" fill="#cbd5e1" stroke="#1e1b18" stroke-width="2.5"/>
+                            <path d="M9 8H4v4c0 3 2 5 5 5V8zm18 0h5v4c0 3-2 5-5 5V8z" fill="#94a3b8" stroke="#1e1b18" stroke-width="2.3"/>
+                            <rect x="15" y="24" width="6" height="5" fill="#94a3b8" stroke="#1e1b18" stroke-width="2.3"/>
+                            <rect x="10" y="29" width="16" height="4" rx="1.5" fill="#e2e8f0" stroke="#1e1b18" stroke-width="2.3"/>
+                            <path d="M13 8h3v10h-3z" fill="#ffffff" opacity="0.65"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Комбо-множитель (появляется при серии быстрых зацепов) -->
+                <div id="comboPill" class="pill-white px-3 py-1 flex items-center gap-1 transition-transform duration-200 scale-100">
+                    <span class="text-amber-500 text-sm">⭐</span>
+                    <span id="comboVal" class="text-slate-900 font-black text-sm sm:text-base leading-none">x1</span>
+                </div>
+
+                <!-- Рекорд с золотым кубком на зелёной плашке -->
+                <div class="pill-green relative pl-3.5 pr-8 py-1 min-w-[92px] sm:min-w-[104px] flex items-center justify-center">
+                    <span id="bestVal" class="text-slate-950 font-black text-base sm:text-lg tracking-tight leading-none">0</span>
+                    <div class="absolute -right-1.5 -top-1.5 w-8 h-8 flex items-center justify-center drop-shadow">
+                        <!-- SVG Золотого кубка -->
+                        <svg viewBox="0 0 36 36" class="w-7 h-7">
+                            <path d="M9 6h18v9c0 5-4 9-9 9s-9-4-9-9V6z" fill="#fbbf24" stroke="#1e1b18" stroke-width="2.5"/>
+                            <path d="M9 8H4v4c0 3 2 5 5 5V8zm18 0h5v4c0 3-2 5-5 5V8z" fill="#d97706" stroke="#1e1b18" stroke-width="2.3"/>
+                            <rect x="15" y="24" width="6" height="5" fill="#d97706" stroke="#1e1b18" stroke-width="2.3"/>
+                            <rect x="10" y="29" width="16" height="4" rx="1.5" fill="#fde047" stroke="#1e1b18" stroke-width="2.3"/>
+                            <path d="M13 8h3v10h-3z" fill="#fef08a" opacity="0.75"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правые кнопки быстрого рестарта и звука как на скриншотах -->
+            <div class="flex items-center gap-2 pointer-events-auto">
+                <button id="quickRestartBtn" title="Начать заново" class="icon-btn w-10 h-10 rounded-full flex items-center justify-center text-white cursor-pointer">
+                    <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                </button>
+                <button id="muteBtn" title="Звук" class="icon-btn w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-base cursor-pointer">
+                    🔊
+                </button>
+            </div>
+        </div>
+
+        <!-- Стартовое меню -->
+        <div id="startOverlay" class="absolute inset-0 bg-amber-950/80 backdrop-blur-md flex flex-col justify-between p-6 z-20 text-white">
+            <div class="text-center mt-8">
+                <div class="inline-block px-4 py-1 rounded-full bg-amber-400/20 border-2 border-amber-300/50 text-amber-200 text-xs font-extrabold uppercase tracking-widest mb-2">
+                    Мой Говорящий Том
+                </div>
+                <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-amber-300 drop-shadow-[0_4px_0_#451a03]">
+                    ТОЛЬКО ВВЕРХ!
+                </h1>
+                <p class="text-amber-100/90 text-sm mt-2 font-semibold">
+                    Тяни резинового Тома вниз и прыгай по каменным лапкам-зацепам!
+                </p>
+            </div>
+
+            <div class="bg-[#fff3d1] text-[#3e2009] border-4 border-[#5c3214] rounded-3xl p-4 space-y-3 shadow-2xl my-auto">
+                <div class="font-black text-center uppercase tracking-wider text-sm border-b-2 border-[#e6ccb2] pb-2">
+                    Каньон приключений:
+                </div>
+                <div class="grid grid-cols-2 gap-3 text-xs sm:text-sm font-bold">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-sky-500 border-2 border-[#3e2009] flex items-center justify-center text-white shadow">🐾</span>
+                        <span>Синяя плитка:<br><span class="text-xs font-semibold text-amber-900">Надёжный зацеп</span></span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-rose-500 border-2 border-[#3e2009] flex items-center justify-center text-white shadow">🐾</span>
+                        <span>Красная плитка:<br><span class="text-xs font-semibold text-amber-900">Быстро падает!</span></span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-amber-200 border-2 border-[#3e2009] flex items-center justify-center text-lg shadow">🧲</span>
+                        <span>Магнит-подкова:<br><span class="text-xs font-semibold text-amber-900">Щит + Бонус</span></span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-blue-600 border-2 border-[#3e2009] flex items-center justify-center text-lg shadow">💰</span>
+                        <span>Синий мешок:<br><span class="text-xs font-semibold text-amber-900">+500 очков!</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center gap-3 mb-4">
+                <button id="startBtn" class="btn-western w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-wider cursor-pointer">
+                    ВВЕРХ!
+                </button>
+                <span class="text-xs text-amber-200/80 font-semibold">Зажми в любом месте экрана, оттяни и отпусти</span>
+            </div>
+        </div>
+
+        <!-- Экран поражения -->
+        <div id="gameOverOverlay" class="hidden absolute inset-0 bg-amber-950/85 backdrop-blur-md flex flex-col justify-center items-center p-6 z-20 text-white">
+            <div class="text-6xl mb-2 drop-shadow-lg animate-bounce">🙀</div>
+            <h2 class="text-3xl sm:text-4xl font-black text-amber-300 tracking-wide uppercase drop-shadow-[0_3px_0_#451a03]">
+                Том сорвался!
+            </h2>
+            <p id="deathReason" class="text-amber-100 text-sm font-semibold mt-1 mb-6 text-center">
+                Берегись острых шипов и колёс!
+            </p>
+
+            <div class="w-full bg-[#fff3d1] text-[#3e2009] border-4 border-[#5c3214] rounded-3xl p-5 mb-6 space-y-3 shadow-2xl">
+                <div class="flex justify-between items-center border-b-2 border-[#e6ccb2] pb-3">
+                    <span class="font-bold text-amber-900">Набрано очков:</span>
+                    <span id="finalScore" class="text-3xl font-black text-[#3e2009]">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-amber-900">Лучший рекорд:</span>
+                    <span id="finalBest" class="text-2xl font-black text-lime-700">0</span>
+                </div>
+            </div>
+
+            <button id="restartBtn" class="btn-western w-full py-4 rounded-2xl text-2xl font-black text-white uppercase tracking-wider cursor-pointer">
+                ЕЩЁ РАЗ!
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * ЗВУКОВОЙ ДВИЖОК (Web Audio API — Сочные мультяшные звуки резинового Тома и зацепов)
+ */
+class SoundFX {
+    constructor() {
+        this.ctx = null;
+        this.muted = false;
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+    }
+
+    playRubberStretch(ratio) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(160 + ratio * 210, now);
+        osc.frequency.exponentialRampToValueAtTime(190 + ratio * 240, now + 0.05);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.055);
+    }
+
+    playLaunch() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(210, now);
+        osc.frequency.exponentialRampToValueAtTime(690, now + 0.18);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.19);
+    }
+
+    playLatch(combo = 1, isRed = false) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        const base = (isRed ? 480 : 410) + Math.min(combo * 45, 320);
+        osc.frequency.setValueAtTime(base, now);
+        osc.frequency.exponentialRampToValueAtTime(base * 1.45, now + 0.11);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    }
+
+    playWallBounce() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(240, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.11);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    }
+
+    playBonus() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.045);
+            gain.gain.setValueAtTime(0.15, now + idx * 0.045);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.045 + 0.18);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.045);
+            osc.stop(now + idx * 0.045 + 0.18);
+        });
+    }
+
+    playHit(shieldSaved = false) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        if (shieldSaved) {
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(180, now + 0.25);
+        } else {
+            osc.frequency.setValueAtTime(230, now);
+            osc.frequency.linearRampToValueAtTime(65, now + 0.45);
+        }
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.45);
+    }
+}
+
+const sfx = new SoundFX();
+
+/**
+ * ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И КОНСТАНТЫ
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('canvasContainer');
+
+let W = 440;
+let H = 820;
+
+function resizeCanvas() {
+    const rect = container.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W;
+    canvas.height = H;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const WALL_W = 28; // Ширина рельефных стен каньона по краям
+const GRAVITY = 0.36;
+const AIR_DRAG = 0.995;
+const WALL_BOUNCE = 0.82;
+const MAX_PULL = 155;
+const LAUNCH_POWER = 0.185;
+
+let gameState = 'START'; // START, PLAYING, GAMEOVER
+let score = 0;
+let bestScore = parseInt(localStorage.getItem('tomCanyonBest') || '0', 10);
+let combo = 1;
+let maxReachedY = 0;
+
+let startY = 0;
+let cameraY = 0;
+let highestSpawnY = 0;
+let gameTime = 0;
+
+// Главный герой — крупный резиновый Говорящий Том
+let tom = {
+    x: 220,
+    y: 500,
+    vx: 0,
+    vy: 0,
+    radius: 34, // Крупная голова/тело
+    state: 'STUCK', // STUCK, FLYING, DEAD
+    attachedPin: null,
+    ignorePin: null,
+    ignoreTimer: 0,
+    // Физика мягкого маятника и упругого желе
+    swingAngle: 0,
+    swingVel: 0,
+    jellyX: 1,
+    jellyY: 1,
+    jellyVelX: 0,
+    jellyVelY: 0,
+    // Глаза и мимика
+    blinkTimer: 120,
+    lookX: 0,
+    lookY: 0,
+    // Бонусный магнит-щит (одевается вокруг Тома, как на скриншоте 3)
+    hasMagnetShield: false,
+    magnetTimer: 0,
+    deathReason: ''
+};
+
+// Управление натяжением рогатки
+let drag = {
+    active: false,
+    startX: 0,
+    startY: 0,
+    currX: 0,
+    currY: 0,
+    dx: 0,
+    dy: 0,
+    lastSoundTime: 0
+};
+
+// Игровые списки
+let pins = [];
+let obstacles = [];
+let bonuses = [];
+let particles = [];
+let floatingTexts = [];
+let canyonStones = [];
+let wallRocks = [];
+let dustMotes = [];
+
+function formatNumber(n) {
+    if (n >= 10000) return (n / 1000).toFixed(1) + 'K';
+    return n.toString();
+}
+
+function updateHUD() {
+    document.getElementById('scoreVal').textContent = formatNumber(score);
+    document.getElementById('bestVal').textContent = formatNumber(bestScore);
+    document.getElementById('comboVal').textContent = 'x' + combo;
+}
+updateHUD();
+
+/**
+ * ИНИЦИАЛИЗАЦИЯ МИРА И ГЕНЕРАЦИЯ ТЕКСТУРЫ КАНЬОНА
+ */
+function initBackgroundArt() {
+    canyonStones = [];
+    wallRocks = [];
+    dustMotes = [];
+
+    // Крупные каменные плитки песчаника на заднем фоне + пучки травы
+    for (let i = 0; i < 36; i++) {
+        const clusterX = WALL_W + 25 + Math.random() * (W - WALL_W * 2 - 90);
+        const clusterY = Math.random() * 1600;
+        const w = 55 + Math.random() * 65;
+        const h = 34 + Math.random() * 38;
+        canyonStones.push({
+            x: clusterX,
+            y: clusterY,
+            w: w,
+            h: h,
+            shade: Math.random() > 0.5 ? '#f5c77e' : '#f2be6f',
+            hasGrass: Math.random() < 0.28
+        });
+    }
+
+    // Рельефные камни для левой и правой стен каньона
+    for (let y = 0; y < 1600; y += 44) {
+        wallRocks.push({
+            y: y,
+            leftW: WALL_W - 4 + Math.random() * 7,
+            rightW: WALL_W - 4 + Math.random() * 7,
+            hasFlowerLeft: Math.random() < 0.16,
+            hasFlowerRight: Math.random() < 0.16
+        });
+    }
+
+    // Солнечные пылинки в лучах света
+    for (let i = 0; i < 28; i++) {
+        dustMotes.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: 1.8 + Math.random() * 2.8,
+            vy: -0.25 - Math.random() * 0.35,
+            vx: 0.15 + Math.random() * 0.25,
+            phase: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+function createPin(x, y, type = 'blue', railSpan = 0) {
+    return {
+        x: x,
+        y: y,
+        baseX: x,
+        baseY: y,
+        size: 52, // Крупная квадратная плитка 52x52px как на скриншотах!
+        catchRadius: 42,
+        type: type, // 'blue', 'red', 'rail_v', 'rail_h'
+        visited: false,
+        // Для красной временной плитки
+        holdTimer: 0,
+        maxHoldTime: 90,
+        broken: false,
+        respawnTimer: 0,
+        // Для рельсовой плитки
+        railSpan: railSpan || 130,
+        railPhase: Math.random() * Math.PI * 2,
+        railSpeed: 0.026 + Math.random() * 0.015,
+        pulseAnim: 0
+    };
+}
+
+function initGame() {
+    resizeCanvas();
+    initBackgroundArt();
+
+    score = 0;
+    combo = 1;
+    gameTime = 0;
+
+    startY = H - 190;
+    maxReachedY = startY;
+    cameraY = 0;
+    highestSpawnY = startY;
+
+    pins = [];
+    obstacles = [];
+    bonuses = [];
+    particles = [];
+    floatingTexts = [];
+
+    // 1. Стартовая плитка внизу по центру
+    const startPin = createPin(W / 2, startY, 'blue');
+    startPin.visited = true;
+    pins.push(startPin);
+
+    // 2. Вторая приветственная плитка чуть выше
+    const secondPin = createPin(W * 0.32, startY - 240, 'blue');
+    pins.push(secondPin);
+
+    const thirdPin = createPin(W * 0.72, startY - 470, 'blue');
+    pins.push(thirdPin);
+
+    highestSpawnY = startY - 470;
+
+    // Генерируем просторные секции вверх
+    while (highestSpawnY > cameraY - H * 1.5) {
+        spawnNextSection();
+    }
+
+    // Размещаем Тома висящим под первой плиткой (на его длинных лапах!)
+    tom.attachedPin = startPin;
+    tom.state = 'STUCK';
+    tom.x = startPin.x;
+    tom.y = startPin.y + 82;
+    tom.vx = 0;
+    tom.vy = 0;
+    tom.swingAngle = 0;
+    tom.swingVel = 0;
+    tom.jellyX = 1;
+    tom.jellyY = 1;
+    tom.hasMagnetShield = false;
+    tom.magnetTimer = 0;
+    tom.deathReason = '';
+
+    drag.active = false;
+    updateHUD();
+}
+
+/**
+ * ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ УРОВНЯ (Просторно: максимум 2–3 зацепа на экран и ОГРОМНЫЕ вестерн-препятствия)
+ */
+function spawnNextSection() {
+    const stepY = 250 + Math.random() * 55; // Большой шаг, чтобы на экране было 2-3 плитки максимум
+    highestSpawnY -= stepY;
+    const y = highestSpawnY;
+
+    const heightMeters = Math.max(0, Math.floor((startY - y) / 25));
+    const difficulty = Math.min(1, heightMeters / 120);
+
+    // Выбираем конфигурацию: 1 плитка (72% случаев) или пара плиток слева и справа (28% случаев)
+    const isDouble = Math.random() < 0.26;
+    const safeMinX = WALL_W + 62;
+    const safeMaxX = W - WALL_W - 62;
+
+    let mainPinX = safeMinX + Math.random() * (safeMaxX - safeMinX);
+
+    // Определяем, будет ли крупное препятствие в этом пролёте
+    const hasBigObstacle = heightMeters > 3 && Math.random() < (0.48 + difficulty * 0.25);
+    let obstacleSide = Math.random() < 0.5 ? 'left' : 'right';
+
+    if (hasBigObstacle) {
+        const obsRoll = Math.random();
+        const obsY = y + stepY * 0.52;
+
+        if (obsRoll < 0.32) {
+            // 1. ОГРОМНОЕ КОЛЕСО ПО ЦЕНТРУ КАНЬОНА (как на скриншоте 5)
+            obstacles.push({
+                type: 'center_wheel',
+                x: W / 2,
+                y: obsY,
+                radius: 76, // Диаметр 152px!
+                angle: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() > 0.5 ? 1 : -1) * (0.022 + difficulty * 0.015),
+                spiked: heightMeters > 25 && Math.random() < 0.5
+            });
+        } else if (obsRoll < 0.62) {
+            // 2. МАССИВНЫЙ ДЕРЕВЯННЫЙ КЛИН С ШИПАМИ И КРАСНЫМИ РЕМНЯМИ НА СТЕНЕ (как на скриншотах 1 и 6)
+            obstacles.push({
+                type: 'wall_wedge',
+                side: obstacleSide,
+                x: obstacleSide === 'left' ? WALL_W - 6 : W - WALL_W + 6,
+                y: obsY,
+                width: 148, // Выступает почти до середины экрана!
+                height: 175
+            });
+            // Сдвигаем верхнюю плитку в безопасную сторону, чтобы путь был честным
+            mainPinX = obstacleSide === 'left'
+                ? (W * 0.58 + Math.random() * (safeMaxX - W * 0.58))
+                : (safeMinX + Math.random() * (W * 0.42 - safeMinX));
+        } else if (obsRoll < 0.84) {
+            // 3. ОГРОМНОЕ СТЕННОЕ КОЛЕСО С ОСТРЫМИ ШИПАМИ (как на скриншотах 3 и 4)
+            obstacles.push({
+                type: 'wall_wheel',
+                side: obstacleSide,
+                x: obstacleSide === 'left' ? WALL_W : W - WALL_W,
+                y: obsY,
+                radius: 88, // Огромный радиус!
+                angle: 0,
+                rotSpeed: (obstacleSide === 'left' ? 1 : -1) * 0.025,
+                spiked: true
+            });
+            mainPinX = obstacleSide === 'left'
+                ? (W * 0.55 + Math.random() * (safeMaxX - W * 0.55))
+                : (safeMinX + Math.random() * (W * 0.45 - safeMinX));
+        } else {
+            // 4. НАКЛОННАЯ ДЕРЕВЯННАЯ ЛЕСТНИЦА-БАРЬЕР В МЕТАЛЛИЧЕСКИХ ОКОВАХ (как на скриншоте 2)
+            obstacles.push({
+                type: 'wall_ladder',
+                side: obstacleSide,
+                x: obstacleSide === 'left' ? WALL_W - 4 : W - WALL_W + 4,
+                y: obsY,
+                length: 135,
+                angle: obstacleSide === 'left' ? 0.42 : Math.PI - 0.42
+            });
+        }
+    }
+
+    // Выбираем тип плитки
+    let pType = 'blue';
+    const typeRoll = Math.random();
+    if (heightMeters > 6) {
+        if (typeRoll < 0.22 + difficulty * 0.12) {
+            pType = 'red';
+        } else if (typeRoll < 0.44 + difficulty * 0.1) {
+            pType = Math.random() < 0.65 ? 'rail_v' : 'rail_h';
+        }
+    }
+
+    if (isDouble && pType === 'blue') {
+        const leftPin = createPin(WALL_W + 72, y, 'blue');
+        const rightPin = createPin(W - WALL_W - 72, y + (Math.random() * 24 - 12), Math.random() < 0.35 ? 'red' : 'blue');
+        pins.push(leftPin, rightPin);
+    } else {
+        if (pType === 'rail_h') {
+            mainPinX = W / 2;
+        }
+        const pin = createPin(mainPinX, y, pType, 110);
+        pins.push(pin);
+    }
+
+    // Спавн крупных бонусов (Синий мешок с золотом +500 очков или Подкова-магнит)
+    const bonusRoll = Math.random();
+    if (bonusRoll < 0.22) {
+        const bx = obstacleSide === 'left' ? W * 0.72 : W * 0.28;
+        bonuses.push({
+            x: bx,
+            y: y + stepY * 0.45,
+            type: Math.random() < 0.58 ? 'bag' : 'magnet',
+            radius: 30,
+            collected: false,
+            bobPhase: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+/**
+ * ЧАСТИЦЫ И ВСПЛЫВАЮЩИЕ ОЧКИ
+ */
+function spawnParticles(x, y, color, count = 14, speed = 5) {
+    for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = (0.35 + Math.random() * 0.85) * speed;
+        particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 1.5,
+            radius: 3 + Math.random() * 4.5,
+            color: color,
+            alpha: 1,
+            decay: 0.022 + Math.random() * 0.018
+        });
+    }
+}
+
+function addFloatingScore(x, y, text, color = '#ffffff', scale = 1) {
+    floatingTexts.push({
+        x: x,
+        y: y,
+        text: text,
+        color: color,
+        scale: scale,
+        alpha: 1,
+        vy: -2.1
+    });
+}
+
+/**
+ * УПРАВЛЕНИЕ МЫШКОЙ И ТАЧЕМ (Тянуть резинового Тома можно в любом месте экрана)
+ */
+function getPointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    let cx, cy;
+    if (e.touches && e.touches.length > 0) {
+        cx = e.touches[0].clientX;
+        cy = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+        cx = e.changedTouches[0].clientX;
+        cy = e.changedTouches[0].clientY;
+    } else {
+        cx = e.clientX;
+        cy = e.clientY;
+    }
+    return {
+        x: (cx - rect.left) * (W / rect.width),
+        y: (cy - rect.top) * (H / rect.height)
+    };
+}
+
+function onPointerDown(e) {
+    if (gameState !== 'PLAYING') return;
+    sfx.init();
+    if (tom.state === 'STUCK') {
+        const pos = getPointerPos(e);
+        drag.active = true;
+        drag.startX = pos.x;
+        drag.startY = pos.y;
+        drag.currX = pos.x;
+        drag.currY = pos.y;
+        drag.dx = 0;
+        drag.dy = 0;
+    }
+}
+
+function onPointerMove(e) {
+    if (!drag.active || gameState !== 'PLAYING') return;
+    const pos = getPointerPos(e);
+    drag.currX = pos.x;
+    drag.currY = pos.y;
+
+    let rawDx = drag.startX - drag.currX;
+    let rawDy = drag.startY - drag.currY;
+    const dist = Math.hypot(rawDx, rawDy);
+
+    if (dist > MAX_PULL) {
+        rawDx = (rawDx / dist) * MAX_PULL;
+        rawDy = (rawDy / dist) * MAX_PULL;
+    }
+
+    drag.dx = rawDx;
+    drag.dy = rawDy;
+
+    const now = performance.now();
+    if (dist > 22 && now - drag.lastSoundTime > 85) {
+        sfx.playRubberStretch(dist / MAX_PULL);
+        drag.lastSoundTime = now;
+    }
+}
+
+function onPointerUp() {
+    if (!drag.active || gameState !== 'PLAYING') return;
+    drag.active = false;
+
+    const pullDist = Math.hypot(drag.dx, drag.dy);
+    if (pullDist > 18 && tom.state === 'STUCK') {
+        // Выстреливаем Тома вверх!
+        tom.vx = drag.dx * LAUNCH_POWER;
+        tom.vy = drag.dy * LAUNCH_POWER;
+        tom.state = 'FLYING';
+        tom.ignorePin = tom.attachedPin;
+        tom.ignoreTimer = 15;
+        tom.attachedPin = null;
+
+        // Резиновый импульс деформации при выстреле
+        tom.jellyX = 0.72;
+        tom.jellyY = 1.35;
+
+        sfx.playLaunch();
+        spawnParticles(tom.x, tom.y - 25, '#ffffff', 10, 4);
+    }
+    drag.dx = 0;
+    drag.dy = 0;
+}
+
+canvas.addEventListener('mousedown', onPointerDown);
+window.addEventListener('mousemove', onPointerMove);
+window.addEventListener('mouseup', onPointerUp);
+
+canvas.addEventListener('touchstart', (e) => {
+    if (e.target === canvas) e.preventDefault();
+    onPointerDown(e);
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    if (drag.active) e.preventDefault();
+    onPointerMove(e);
+}, { passive: false });
+
+window.addEventListener('touchend', onPointerUp);
+
+/**
+ * СТОЛКНОВЕНИЕ С ОГРОМНЫМИ ПРЕПЯТСТВИЯМИ
+ */
+function triggerHazardHit(hx, hy, text) {
+    if (tom.state === 'DEAD') return;
+
+    if (tom.hasMagnetShield) {
+        // Подкова-магнит спасает Тома от удара!
+        tom.hasMagnetShield = false;
+        tom.magnetTimer = 0;
+        sfx.playHit(true);
+        spawnParticles(tom.x, tom.y, '#ef4444', 24, 6.5);
+        addFloatingScore(tom.x, tom.y - 30, 'ЩИТ СПАС!', '#fde047', 1.2);
+
+        const ang = Math.atan2(tom.y - hy, tom.x - hx);
+        tom.vx = Math.cos(ang) * 8;
+        tom.vy = -12;
+        tom.state = 'FLYING';
+        tom.attachedPin = null;
+        tom.jellyX = 1.35;
+        tom.jellyY = 0.7;
+    } else {
+        tom.state = 'DEAD';
+        tom.attachedPin = null;
+        tom.vy = -8;
+        tom.vx = (tom.x < hx ? -1 : 1) * 5;
+        tom.deathReason = text;
+        combo = 1;
+        sfx.playHit(false);
+        spawnParticles(tom.x, tom.y, '#f43f5e', 28, 7);
+        addFloatingScore(tom.x, tom.y - 20, 'АЙ!', '#fb7185', 1.3);
+        updateHUD();
+    }
+}
+
+function addScorePoints(pts, x, y, labelPrefix = '+') {
+    score += pts;
+    if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('tomCanyonBest', bestScore.toString());
+    }
+    updateHUD();
+    if (x !== undefined && y !== undefined) {
+        addFloatingScore(x, y, `${labelPrefix}${pts}`, '#ffffff', 1.15);
+    }
+}
+
+/**
+ * ОСНОВНОЙ ФИЗИЧЕСКИЙ ЦИКЛ (60 FPS)
+ */
+function update() {
+    gameTime++;
+
+    // Движение солнечных пылинок в воздухе
+    dustMotes.forEach(m => {
+        m.x += m.vx + Math.sin(gameTime * 0.02 + m.phase) * 0.15;
+        m.y += m.vy;
+        if (m.y < -10) m.y = H + 10;
+        if (m.x > W + 10) m.x = -10;
+    });
+
+    if (gameState !== 'PLAYING') return;
+
+    // Упругая пружина желе-деформации Тома
+    tom.jellyVelX += (1 - tom.jellyX) * 0.22;
+    tom.jellyVelY += (1 - tom.jellyY) * 0.22;
+    tom.jellyVelX *= 0.76;
+    tom.jellyVelY *= 0.76;
+    tom.jellyX += tom.jellyVelX;
+    tom.jellyY += tom.jellyVelY;
+
+    // Моргание глаз Тома
+    tom.blinkTimer--;
+    if (tom.blinkTimer < -8) {
+        tom.blinkTimer = 110 + Math.floor(Math.random() * 120);
+    }
+
+    // Таймер магнита-щита
+    if (tom.magnetTimer > 0) {
+        tom.magnetTimer--;
+        if (tom.magnetTimer === 0) {
+            tom.hasMagnetShield = false;
+        }
+    }
+
+    // 1. Обновление всех плиток-зацепов
+    for (let i = 0; i < pins.length; i++) {
+        const p = pins[i];
+        if (p.pulseAnim > 0) p.pulseAnim = Math.max(0, p.pulseAnim - 0.06);
+
+        if (p.type === 'rail_v') {
+            p.railPhase += p.railSpeed;
+            p.y = p.baseY + Math.sin(p.railPhase) * (p.railSpan / 2);
+        } else if (p.type === 'rail_h') {
+            p.railPhase += p.railSpeed;
+            p.x = p.baseX + Math.sin(p.railPhase) * (p.railSpan / 2);
+        } else if (p.type === 'red') {
+            if (p.broken) {
+                p.respawnTimer--;
+                if (p.respawnTimer <= 0) {
+                    p.broken = false;
+                    p.holdTimer = 0;
+                }
+            } else if (tom.state === 'STUCK' && tom.attachedPin === p) {
+                p.holdTimer++;
+                if (p.holdTimer >= p.maxHoldTime) {
+                    p.broken = true;
+                    p.respawnTimer = 170;
+                    tom.state = 'FLYING';
+                    tom.attachedPin = null;
+                    tom.vx = (Math.random() - 0.5) * 2.5;
+                    tom.vy = 2;
+                    drag.active = false;
+                    sfx.playHit(true);
+                    spawnParticles(p.x, p.y, '#ef4444', 18, 5);
+                }
+            } else {
+                p.holdTimer = Math.max(0, p.holdTimer - 1);
+            }
+        }
+    }
+
+    // 2. Движение и физика Тома
+    if (tom.state === 'STUCK' && tom.attachedPin) {
+        const p = tom.attachedPin;
+
+        // Плавное раскачивание на длинных резиновых лапах под плиткой
+        const hangDistance = 76;
+        if (drag.active) {
+            // При оттягивании Том смещается против вектора выстрела, растягивая лапы как резину!
+            const pullX = -drag.dx * 0.58;
+            const pullY = -drag.dy * 0.58;
+            const targetX = p.x + pullX;
+            const targetY = p.y + hangDistance + pullY;
+            tom.x += (targetX - tom.x) * 0.38;
+            tom.y += (targetY - tom.y) * 0.38;
+            tom.swingAngle = Math.atan2(tom.x - p.x, Math.max(25, tom.y - p.y));
+            tom.lookX = drag.dx * 0.04;
+            tom.lookY = drag.dy * 0.04;
+        } else {
+            // Свободное маятниковое покачивание
+            tom.swingVel += -0.065 * tom.swingAngle;
+            tom.swingVel *= 0.93;
+            tom.swingAngle += tom.swingVel;
+
+            tom.x = p.x + Math.sin(tom.swingAngle) * hangDistance;
+            tom.y = p.y + Math.cos(tom.swingAngle) * hangDistance;
+            tom.lookX *= 0.85;
+            tom.lookY = -2;
+        }
+        tom.vx = 0;
+        tom.vy = 0;
+
+    } else if (tom.state === 'FLYING' || tom.state === 'DEAD') {
+        if (tom.ignoreTimer > 0) {
+            tom.ignoreTimer--;
+            if (tom.ignoreTimer === 0) tom.ignorePin = null;
+        }
+
+        tom.vy += GRAVITY;
+        tom.vx *= AIR_DRAG;
+        tom.vy *= AIR_DRAG;
+
+        tom.x += tom.vx;
+        tom.y += tom.vy;
+
+        tom.lookX = Math.max(-5, Math.min(5, tom.vx * 0.35));
+        tom.lookY = Math.max(-5, Math.min(5, tom.vy * 0.35));
+
+        // Начисление очков за каждый новый метр высоты
+        if (tom.state === 'FLYING' && tom.y < maxReachedY) {
+            const diffMeters = Math.floor((maxReachedY - tom.y) / 14);
+            if (diffMeters > 0) {
+                maxReachedY -= diffMeters * 14;
+                addScorePoints(diffMeters * 2);
+            }
+        }
+
+        // Упругий отскок от каменных стен каньона
+        if (tom.x - tom.radius < WALL_W) {
+            tom.x = WALL_W + tom.radius;
+            tom.vx = Math.abs(tom.vx) * WALL_BOUNCE;
+            tom.jellyX = 0.68;
+            tom.jellyY = 1.28;
+            sfx.playWallBounce();
+            spawnParticles(WALL_W, tom.y, '#fde68a', 9, 3.5);
+        } else if (tom.x + tom.radius > W - WALL_W) {
+            tom.x = W - WALL_W - tom.radius;
+            tom.vx = -Math.abs(tom.vx) * WALL_BOUNCE;
+            tom.jellyX = 0.68;
+            tom.jellyY = 1.28;
+            sfx.playWallBounce();
+            spawnParticles(W - WALL_W, tom.y, '#fde68a', 9, 3.5);
+        }
+
+        // Проверка зацепа за квадратную плитку с лапкой
+        if (tom.state === 'FLYING') {
+            for (let i = 0; i < pins.length; i++) {
+                const p = pins[i];
+                if (p === tom.ignorePin) continue;
+                if (p.type === 'red' && p.broken) continue;
+
+                // Том хватает плитку лапами сверху или на подлёте
+                const dist = Math.hypot(tom.x - p.x, (tom.y - 24) - p.y);
+                if (dist <= p.catchRadius + 16) {
+                    tom.state = 'STUCK';
+                    tom.attachedPin = p;
+                    tom.swingAngle = Math.max(-0.75, Math.min(0.75, (tom.x - p.x) * 0.015));
+                    tom.swingVel = tom.vx * 0.018;
+                    tom.vx = 0;
+                    tom.vy = 0;
+                    tom.jellyX = 1.28;
+                    tom.jellyY = 0.76;
+                    p.pulseAnim = 1;
+
+                    // Начисляем очки за каждое новое цепление!
+                    if (!p.visited) {
+                        p.visited = true;
+                        const catchPoints = 30 * combo;
+                        addScorePoints(catchPoints, p.x, p.y - 36, '+');
+                        combo = Math.min(10, combo + 1);
+                        // Анимация плашки комбо
+                        const cp = document.getElementById('comboPill');
+                        cp.style.transform = 'scale(1.22)';
+                        setTimeout(() => { cp.style.transform = 'scale(1)'; }, 160);
+                    } else {
+                        combo = 1;
+                    }
+                    updateHUD();
+
+                    sfx.playLatch(combo, p.type === 'red');
+                    spawnParticles(p.x, p.y, '#7dd3fc', 14, 4.5);
+                    break;
+                }
+            }
+        }
+    }
+
+    // 3. Обновление и коллизия с ОГРОМНЫМИ вестерн-препятствиями
+    for (let i = 0; i < obstacles.length; i++) {
+        const o = obstacles[i];
+        if (o.type === 'center_wheel' || o.type === 'wall_wheel') {
+            o.angle += o.rotSpeed;
+            if (tom.state !== 'DEAD') {
+                const d = Math.hypot(tom.x - o.x, tom.y - o.y);
+                const hitR = o.spiked ? o.radius + 10 : o.radius - 2;
+                if (d < hitR + tom.radius * 0.72) {
+                    triggerHazardHit(o.x, o.y, 'Том налетел на огромное колесо с шипами!');
+                }
+            }
+        } else if (o.type === 'wall_wedge') {
+            if (tom.state !== 'DEAD') {
+                // Треугольный клин с острыми шипами
+                const tipX = o.side === 'left' ? o.x + o.width : o.x - o.width;
+                const tipY = o.y;
+                const topY = o.y - o.height / 2;
+                const botY = o.y + o.height / 2;
+
+                if (tom.y + tom.radius * 0.7 > topY && tom.y - tom.radius * 0.7 < botY) {
+                    const progressY = 1 - Math.min(1, Math.abs(tom.y - tipY) / (o.height / 2));
+                    const currentExtent = o.width * progressY;
+                    if (o.side === 'left') {
+                        if (tom.x - tom.radius * 0.75 < o.x + currentExtent) {
+                            triggerHazardHit(tipX, tipY, 'Том укололся об острый деревянный клин!');
+                        }
+                    } else {
+                        if (tom.x + tom.radius * 0.75 > o.x - currentExtent) {
+                            triggerHazardHit(tipX, tipY, 'Том укололся об острый деревянный клин!');
+                        }
+                    }
+                }
+            }
+        } else if (o.type === 'wall_ladder') {
+            if (tom.state !== 'DEAD') {
+                // Проверяем расстояние от Тома до отрезка наклонной лестницы
+                const x1 = o.x;
+                const y1 = o.y;
+                const x2 = o.x + Math.cos(o.angle) * o.length;
+                const y2 = o.y + Math.sin(o.angle) * o.length;
+                const A = tom.x - x1;
+                const B = tom.y - y1;
+                const C = x2 - x1;
+                const D = y2 - y1;
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                const param = Math.max(0, Math.min(1, dot / lenSq));
+                const nearX = x1 + param * C;
+                const nearY = y1 + param * D;
+                if (Math.hypot(tom.x - nearX, tom.y - nearY) < tom.radius * 0.78 + 16) {
+                    triggerHazardHit(nearX, nearY, 'Том врезался в окованную балку!');
+                }
+            }
+        }
+    }
+
+    // 4. Сбор крупных бонусов (Синий мешок с сокровищами и Подкова-магнит)
+    for (let i = 0; i < bonuses.length; i++) {
+        const b = bonuses[i];
+        if (b.collected) continue;
+
+        if (tom.hasMagnetShield && b.type === 'bag') {
+            const distM = Math.hypot(tom.x - b.x, tom.y - b.y);
+            if (distM < 250) {
+                b.x += (tom.x - b.x) * 0.12;
+                b.y += (tom.y - b.y) * 0.12;
+            }
+        }
+
+        if (Math.hypot(tom.x - b.x, tom.y - b.y) < tom.radius + b.radius) {
+            b.collected = true;
+            sfx.playBonus();
+            if (b.type === 'bag') {
+                addScorePoints(500, b.x, b.y - 20, '+');
+                spawnParticles(b.x, b.y, '#facc15', 22, 6);
+            } else if (b.type === 'magnet') {
+                tom.hasMagnetShield = true;
+                tom.magnetTimer = 720; // 12 секунд защиты и магнита
+                addScorePoints(150, b.x, b.y - 20, '🧲 +');
+                spawnParticles(b.x, b.y, '#ef4444', 20, 5.5);
+            }
+        }
+    }
+
+    // 5. Плавное движение камеры вверх вслед за Томом
+    const targetCamY = tom.y - H * 0.64;
+    if (targetCamY < cameraY) {
+        cameraY += (targetCamY - cameraY) * 0.095;
+    } else if (targetCamY > cameraY + 140 && cameraY < 0) {
+        cameraY += (targetCamY - cameraY) * 0.05;
+    }
+
+    while (highestSpawnY > cameraY - H * 1.4) {
+        spawnNextSection();
+    }
+
+    // Очистка старых объектов далеко внизу
+    const cleanupY = cameraY + H + 360;
+    pins = pins.filter(p => p.y < cleanupY);
+    obstacles = obstacles.filter(o => o.y < cleanupY);
+    bonuses = bonuses.filter(b => !b.collected && b.y < cleanupY);
+
+    // Проверка падения в пропасть
+    if (tom.y - cameraY > H + 120) {
+        sfx.playHit(false);
+        gameState = 'GAMEOVER';
+        document.getElementById('deathReason').textContent = tom.deathReason || 'Том промахнулся мимо лапки-зацепа!';
+        document.getElementById('finalScore').textContent = score;
+        document.getElementById('finalBest').textContent = bestScore;
+        document.getElementById('gameOverOverlay').classList.remove('hidden');
+    }
+
+    // 6. Обновление частиц и всплывающих очков
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.vy += 0.14;
+        pt.alpha -= pt.decay;
+        if (pt.alpha <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ft.alpha -= 0.022;
+        if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+    }
+}
+
+/**
+ * ОТРИСОВКА СОЛНЕЧНОГО ПЕСЧАНОГО КАНЬОНА И ТЕКСТУР (1-в-1 со скриншотами)
+ */
+function drawCanyonBackground() {
+    // 1. Тёплый золотисто-песочный градиент каньона
+    const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, '#fff2c6');
+    bgGrad.addColorStop(0.45, '#fde09b');
+    bgGrad.addColorStop(1, '#f7c978');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // 2. Мягкая каменная кладка песчаника и пучки зелени на стене каньона
+    ctx.save();
+    const wrapH = 1600;
+    canyonStones.forEach(st => {
+        let sy = (st.y - cameraY * 0.65) % wrapH;
+        if (sy < -120) sy += wrapH;
+
+        // Мягкий блок песчаника
+        ctx.fillStyle = st.shade;
+        ctx.strokeStyle = '#eab364';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(st.x, sy, st.w, st.h, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        // Светлый блик сверху камня
+        ctx.strokeStyle = 'rgba(255, 250, 230, 0.55)';
+        ctx.beginPath();
+        ctx.moveTo(st.x + 6, sy + 3);
+        ctx.lineTo(st.x + st.w - 6, sy + 3);
+        ctx.stroke();
+
+        // Пучок зелёной травы в расщелине (как на скриншотах)
+        if (st.hasGrass) {
+            const gx = st.x + st.w * 0.5;
+            const gy = sy;
+            ctx.fillStyle = '#7cb342';
+            ctx.strokeStyle = '#558b2f';
+            ctx.lineWidth = 1.5;
+            [-12, -5, 2, 9].forEach((ang, idx) => {
+                ctx.beginPath();
+                ctx.moveTo(gx, gy + 2);
+                ctx.quadraticCurveTo(gx + ang * 1.4, gy - 14 - (idx % 2) * 5, gx + ang * 2.1, gy - 10);
+                ctx.quadraticCurveTo(gx + ang * 0.8, gy - 4, gx, gy + 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+    });
+    ctx.restore();
+
+    // 3. Старинное сводчатое окошко в нижней части башни (как на скриншоте 7)
+    const archScreenY = (startY - 120) - cameraY;
+    if (archScreenY > -200 && archScreenY < H + 200) {
+        ctx.save();
+        ctx.fillStyle = '#5c3214';
+        ctx.strokeStyle = '#3e2009';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(8, archScreenY, 44, -Math.PI / 2, Math.PI / 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#a855f7';
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(8, archScreenY, 34, -Math.PI / 2, Math.PI / 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 4. Объёмные каменные стены каньона по краям экрана (левая и правая)
+    ctx.save();
+    // Внутренняя мягкая тень от стен на песок
+    const leftShadow = ctx.createLinearGradient(0, 0, WALL_W + 24, 0);
+    leftShadow.addColorStop(0, 'rgba(138, 75, 28, 0.42)');
+    leftShadow.addColorStop(1, 'rgba(138, 75, 28, 0)');
+    ctx.fillStyle = leftShadow;
+    ctx.fillRect(0, 0, WALL_W + 24, H);
+
+    const rightShadow = ctx.createLinearGradient(W, 0, W - WALL_W - 24, 0);
+    rightShadow.addColorStop(0, 'rgba(138, 75, 28, 0.42)');
+    rightShadow.addColorStop(1, 'rgba(138, 75, 28, 0)');
+    ctx.fillStyle = rightShadow;
+    ctx.fillRect(W - WALL_W - 24, 0, WALL_W + 24, H);
+
+    wallRocks.forEach(wr => {
+        let wy = (wr.y - cameraY) % wrapH;
+        if (wy < -60) wy += wrapH;
+
+        // Левый камень стены
+        ctx.fillStyle = '#e5a95c';
+        ctx.strokeStyle = '#9c5a25';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(-8, wy, wr.leftW + 8, 46, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        // Блик на левом камне
+        ctx.fillStyle = '#f8cb86';
+        ctx.beginPath();
+        ctx.roundRect(-4, wy + 4, wr.leftW - 2, 16, 5);
+        ctx.fill();
+
+        // Правый камень стены
+        ctx.fillStyle = '#e5a95c';
+        ctx.beginPath();
+        ctx.roundRect(W - wr.rightW, wy, wr.rightW + 8, 46, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8cb86';
+        ctx.beginPath();
+        ctx.roundRect(W - wr.rightW + 4, wy + 4, wr.rightW - 2, 16, 5);
+        ctx.fill();
+
+        // Вьющиеся лианы и цветочки на стенах (как на скриншотах 7 и 8)
+        if (wr.hasFlowerLeft) {
+            drawWallVine(wr.leftW - 2, wy + 22, 1);
+        }
+        if (wr.hasFlowerRight) {
+            drawWallVine(W - wr.rightW + 2, wy + 22, -1);
+        }
+    });
+    ctx.restore();
+
+    // 5. Тёплые солнечные лучи сверху и парящие золотистые пылинки
+    ctx.save();
+    const rayGrad = ctx.createLinearGradient(0, 0, W * 0.7, H * 0.65);
+    rayGrad.addColorStop(0, 'rgba(255, 255, 240, 0.28)');
+    rayGrad.addColorStop(1, 'rgba(255, 255, 240, 0)');
+    ctx.fillStyle = rayGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(W * 0.55, 0);
+    ctx.lineTo(W, H * 0.65);
+    ctx.lineTo(W * 0.2, H * 0.65);
+    ctx.closePath();
+    ctx.fill();
+
+    dustMotes.forEach(m => {
+        const glow = 0.35 + Math.sin(gameTime * 0.05 + m.phase) * 0.25;
+        ctx.fillStyle = `rgba(255, 252, 220, ${glow})`;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.restore();
+}
+
+function drawWallVine(x, y, dir) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir, 1);
+    ctx.fillStyle = '#65a30d';
+    ctx.strokeStyle = '#365314';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(6, -5, 8, 4, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(8, 5, 9, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Голубой или белый цветочек
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(12, 0, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(12, 0, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+/**
+ * ОТРИСОВКА КРУПНЫХ КВАДРАТНЫХ ПЛИТОК-ЗАЦЕПОВ С ЛАПКОЙ (Как на скриншотах!)
+ */
+function drawPinTile(p) {
+    ctx.save();
+
+    // Металлическая рельса в каменной стене для движущихся плиток (как на скриншоте 2)
+    if (p.type === 'rail_v' || p.type === 'rail_h') {
+        ctx.save();
+        ctx.strokeStyle = '#5c4028';
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (p.type === 'rail_v') {
+            ctx.moveTo(p.baseX, p.baseY - p.railSpan / 2 - 18);
+            ctx.lineTo(p.baseX, p.baseY + p.railSpan / 2 + 18);
+        } else {
+            ctx.moveTo(p.baseX - p.railSpan / 2 - 18, p.baseY);
+            ctx.lineTo(p.baseX + p.railSpan / 2 + 18, p.baseY);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = '#b08d6a';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (p.type === 'red' && p.broken) {
+        // Контур сломанной красной плитки
+        ctx.strokeStyle = 'rgba(185, 28, 28, 0.35)';
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 3;
+        ctx.strokeRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+        ctx.restore();
+        return;
+    }
+
+    let shakeX = 0;
+    let shakeY = 0;
+    if (p.type === 'red' && p.holdTimer > 0) {
+        const shk = (p.holdTimer / p.maxHoldTime) * 5;
+        shakeX = (Math.random() - 0.5) * shk;
+        shakeY = (Math.random() - 0.5) * shk;
+    }
+
+    const isAttached = (tom.state === 'STUCK' && tom.attachedPin === p);
+    const scale = 1 + Math.sin(p.pulseAnim * Math.PI) * 0.14;
+
+    ctx.translate(p.x + shakeX, p.y + shakeY);
+    ctx.scale(scale, scale);
+
+    const half = p.size / 2;
+
+    // 1. Мягкая падающая тень на стену каньона (2.5D объём)
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.35)';
+    ctx.beginPath();
+    ctx.roundRect(-half + 4, -half + 7, p.size, p.size, 11);
+    ctx.fill();
+
+    // 2. Внешняя скошенная бронзово-каменная рамка плитки с темным контуром
+    const frameGrad = ctx.createLinearGradient(0, -half, 0, half);
+    if (isAttached) {
+        frameGrad.addColorStop(0, '#ffffff');
+        frameGrad.addColorStop(1, '#bae6fd');
+    } else {
+        frameGrad.addColorStop(0, '#f3d2b3');
+        frameGrad.addColorStop(0.5, '#c68b59');
+        frameGrad.addColorStop(1, '#8c5227');
+    }
+
+    ctx.fillStyle = frameGrad;
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.roundRect(-half, -half, p.size, p.size, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Внутренний квадрат с ярким цветом (Голубой неоновый, Синий или Красный)
+    const innerHalf = half - 7;
+    const innerGrad = ctx.createLinearGradient(0, -innerHalf, 0, innerHalf);
+    if (p.type === 'red') {
+        const flash = p.holdTimer > 35 && Math.floor(p.holdTimer / 4) % 2 === 0;
+        innerGrad.addColorStop(0, flash ? '#fecdd3' : '#fb7185');
+        innerGrad.addColorStop(1, '#e11d48');
+    } else if (isAttached) {
+        // Светится ярко-голубым, когда Том висит на ней (как на всех скриншотах!)
+        innerGrad.addColorStop(0, '#e0f2fe');
+        innerGrad.addColorStop(0.4, '#7dd3fc');
+        innerGrad.addColorStop(1, '#0284c7');
+    } else {
+        innerGrad.addColorStop(0, '#60a5fa');
+        innerGrad.addColorStop(1, '#2563eb');
+    }
+
+    ctx.fillStyle = innerGrad;
+    ctx.strokeStyle = isAttached ? '#ffffff' : '#1e3a8a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-innerHalf, -innerHalf, innerHalf * 2, innerHalf * 2, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // 4. Отпечаток кошачьей лапки по центру плитки
+    ctx.fillStyle = p.type === 'red' ? '#881337' : (isAttached ? '#0284c7' : '#1d4ed8');
+    // Главная подушечка лапки
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 7.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 4 пальчика лапки
+    [
+        { x: -8, y: -4, r: 3.1 },
+        { x: -3, y: -7.5, r: 3.3 },
+        { x: 3, y: -7.5, r: 3.3 },
+        { x: 8, y: -4, r: 3.1 }
+    ].forEach(toe => {
+        ctx.beginPath();
+        ctx.arc(toe.x, toe.y, toe.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.restore();
+}
+
+/**
+ * ОТРИСОВКА ОГРОМНЫХ ВЕСТЕРН-ПРЕПЯТСТВИЙ (Колёса, деревянные клинья с ремнями, балки)
+ */
+function drawBigObstacle(o) {
+    ctx.save();
+    if (o.type === 'center_wheel') {
+        drawWagonWheel(o.x, o.y, o.radius, o.angle, o.spiked);
+    } else if (o.type === 'wall_wheel') {
+        drawWagonWheel(o.x, o.y, o.radius, o.angle, true);
+        // Массивная деревянная колонна поверх края стены (как на скриншотах 3 и 4)
+        drawWoodenWallPillar(o.side, o.y, o.radius * 2.3);
+    } else if (o.type === 'wall_wedge') {
+        drawSpikedWoodWedge(o);
+        drawWoodenWallPillar(o.side, o.y, o.height + 36);
+    } else if (o.type === 'wall_ladder') {
+        drawWallLadderBarrier(o);
+        drawWoodenWallPillar(o.side, o.y, 140);
+    }
+    ctx.restore();
+}
+
+function drawWoodenWallPillar(side, y, height) {
+    ctx.save();
+    const pw = 30;
+    const px = side === 'left' ? 0 : W - pw;
+    const py = y - height / 2;
+
+    // Тень от колонны
+    ctx.fillStyle = 'rgba(80, 40, 10, 0.35)';
+    ctx.fillRect(side === 'left' ? px + 5 : px - 5, py + 6, pw, height);
+
+    const woodGrad = ctx.createLinearGradient(px, 0, px + pw, 0);
+    woodGrad.addColorStop(0, '#c27838');
+    woodGrad.addColorStop(0.5, '#9a5520');
+    woodGrad.addColorStop(1, '#6e3810');
+    ctx.fillStyle = woodGrad;
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw, height, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Верхняя и нижняя деревянные шляпки колонны
+    ctx.fillStyle = '#d98a46';
+    ctx.beginPath();
+    ctx.roundRect(px - 4, py - 6, pw + 8, 16, 4);
+    ctx.roundRect(px - 4, py + height - 10, pw + 8, 16, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawWagonWheel(x, y, r, angle, spiked) {
+    ctx.save();
+    // Падающая тень колеса
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.32)';
+    ctx.beginPath();
+    ctx.arc(x + 6, y + 9, r + (spiked ? 8 : 0), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Острые стальные шипы по внешнему ободу (если колесо шипованное)
+    if (spiked) {
+        const spikeCount = 16;
+        ctx.fillStyle = '#94a3b8';
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < spikeCount; i++) {
+            const a = (i * Math.PI * 2) / spikeCount;
+            ctx.save();
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.moveTo(r - 4, -8);
+            ctx.lineTo(r + 18, 0);
+            ctx.lineTo(r - 4, 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // Деревянные спицы (8 штук)
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        ctx.save();
+        ctx.rotate(a);
+        ctx.fillStyle = '#b4692c';
+        ctx.beginPath();
+        ctx.roundRect(-6, 0, 12, r - 10, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Деревянный обод + кованый стальной внешний обод
+    ctx.lineWidth = 16;
+    ctx.strokeStyle = '#a35822';
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 12, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Чёрные контуры обода
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 3, 0, Math.PI * 2);
+    ctx.arc(0, 0, r - 19, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Кожаные/красные ремни крест-накрест на ободе (как на скриншотах 3, 4, 5)
+    for (let i = 0; i < 4; i++) {
+        ctx.save();
+        ctx.rotate((i * Math.PI) / 2 + 0.3);
+        ctx.fillStyle = spiked ? '#dc2626' : '#78553a';
+        ctx.strokeStyle = '#2b1608';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(r - 22, -7, 26, 14, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Центральная ступица колеса
+    ctx.fillStyle = '#c87a38';
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawSpikedWoodWedge(o) {
+    ctx.save();
+    const isLeft = o.side === 'left';
+    const baseX = o.x;
+    const tipX = isLeft ? baseX + o.width : baseX - o.width;
+    const topY = o.y - o.height / 2;
+    const botY = o.y + o.height / 2;
+
+    // 1. Падающая тень клина на песок
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.32)';
+    ctx.beginPath();
+    ctx.moveTo(baseX, topY + 10);
+    ctx.lineTo(tipX + (isLeft ? 6 : -6), o.y + 10);
+    ctx.lineTo(baseX, botY + 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Стальные зубья-шипы вдоль верхнего и нижнего скосов клина
+    ctx.fillStyle = '#94a3b8';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2.5;
+    const numSpikes = 6;
+    for (let i = 1; i <= numSpikes; i++) {
+        const t = i / (numSpikes + 0.5);
+        // Верхний ряд шипов
+        const sx1 = baseX + (tipX - baseX) * t;
+        const sy1 = topY + (o.y - topY) * t;
+        ctx.beginPath();
+        ctx.arc(sx1, sy1 - 5, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Нижний ряд шипов
+        const sx2 = baseX + (tipX - baseX) * t;
+        const sy2 = botY + (o.y - botY) * t;
+        ctx.beginPath();
+        ctx.arc(sx2, sy2 + 5, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    // Острый стальной наконечник на вершине клина
+    ctx.beginPath();
+    ctx.moveTo(tipX - (isLeft ? 14 : -14), o.y - 14);
+    ctx.lineTo(tipX + (isLeft ? 18 : -18), o.y);
+    ctx.lineTo(tipX - (isLeft ? 14 : -14), o.y + 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Металлическая оковка по краям треугольника
+    ctx.fillStyle = '#64748b';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(baseX, topY);
+    ctx.lineTo(tipX, o.y);
+    ctx.lineTo(baseX, botY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 4. Внутренний деревянный треугольник из брусьев
+    ctx.fillStyle = '#b4692c';
+    ctx.beginPath();
+    ctx.moveTo(baseX, topY + 14);
+    ctx.lineTo(tipX - (isLeft ? 22 : -22), o.y);
+    ctx.lineTo(baseX, botY - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Вырез внутри деревянного треугольника (как на скриншоте 1)
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath();
+    ctx.moveTo(baseX + (isLeft ? 14 : -14), topY + 38);
+    ctx.lineTo(tipX - (isLeft ? 54 : -54), o.y);
+    ctx.lineTo(baseX + (isLeft ? 14 : -14), botY - 38);
+    ctx.closePath();
+    ctx.fill();
+
+    // 5. Ярко-красные кожаные ремни-обмотки на балках клина (как на скриншоте 1)
+    ctx.fillStyle = '#dc2626';
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 2.5;
+    const midX = (baseX + tipX) * 0.52;
+    const topMidY = (topY + o.y) * 0.52;
+    const botMidY = (botY + o.y) * 0.52;
+
+    ctx.beginPath();
+    ctx.roundRect(midX - 10, topMidY - 12, 20, 24, 4);
+    ctx.roundRect(midX - 10, botMidY - 12, 20, 24, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawWallLadderBarrier(o) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.angle);
+
+    // Падающая тень
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.32)';
+    ctx.fillRect(4, -22, o.length, 52);
+
+    // Поперечные деревянные перекладины
+    ctx.fillStyle = '#c27838';
+    ctx.strokeStyle = '#2b1608';
+    ctx.lineWidth = 2.8;
+    for (let rx = 25; rx < o.length - 15; rx += 38) {
+        ctx.beginPath();
+        ctx.roundRect(rx, -22, 14, 44, 3);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    // Две продольные стальные полосы по краям
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.roundRect(0, -26, o.length, 12, 4);
+    ctx.roundRect(0, 14, o.length, 12, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Кожаные ремни вокруг стальных полос
+    ctx.fillStyle = '#78553a';
+    [35, 85].forEach(bx => {
+        ctx.beginPath();
+        ctx.roundRect(bx, -28, 12, 16, 3);
+        ctx.roundRect(bx, 12, 12, 16, 3);
+        ctx.fill();
+        ctx.stroke();
+    });
+
+    ctx.restore();
+}
+
+/**
+ * ОТРИСОВКА КРУПНЫХ БОНУСОВ (Синий мешок с золотом и Подкова-магнит со скриншота 1)
+ */
+function drawBonusItem(b) {
+    if (b.collected) return;
+    ctx.save();
+    const bob = Math.sin(gameTime * 0.07 + b.bobPhase) * 5;
+    ctx.translate(b.x, b.y + bob);
+
+    // Тень под бонусом
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.28)';
+    ctx.beginPath();
+    ctx.arc(4, 8, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (b.type === 'bag') {
+        // Крупный синий мешок с золотом (как на скриншотах 1 и 5)
+        const bagGrad = ctx.createRadialGradient(-6, 4, 4, 0, 6, 26);
+        bagGrad.addColorStop(0, '#3b82f6');
+        bagGrad.addColorStop(1, '#1e3a8a');
+        ctx.fillStyle = bagGrad;
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 3;
+
+        // Пузатое основание мешка
+        ctx.beginPath();
+        ctx.ellipse(0, 8, 23, 19, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Верхняя горловина мешка
+        ctx.beginPath();
+        ctx.ellipse(0, -14, 16, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Сияющее золото внутри горловины
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(-5, -14, 6, 0, Math.PI * 2);
+        ctx.arc(5, -14, 6, 0, Math.PI * 2);
+        ctx.arc(0, -17, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Веревка вокруг горловины
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-11, -6);
+        ctx.quadraticCurveTo(0, -3, 11, -6);
+        ctx.stroke();
+    } else if (b.type === 'magnet') {
+        // Крупный красно-белый подковообразный магнит (как на скриншотах 1 и 4)
+        ctx.rotate(-0.25);
+        ctx.lineWidth = 15;
+        ctx.lineCap = 'butt';
+
+        // Чёрный контур подковы
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 20;
+        ctx.beginPath();
+        ctx.arc(0, 2, 18, Math.PI * 0.85, Math.PI * 2.15);
+        ctx.stroke();
+
+        // Красная дуга магнита
+        ctx.strokeStyle = '#dc2626';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.arc(0, 2, 18, Math.PI * 0.85, Math.PI * 2.15);
+        ctx.stroke();
+
+        // Белые наконечники магнита
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.rect(-24, 4, 13, 10);
+        ctx.rect(11, 4, 13, 10);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+/**
+ * ОТРИСОВКА МИЛОГО РЕЗИНОВОГО ГОВОРЯЩЕГО ТОМА С ДЛИННЫМИ ЛАПАМИ (1-в-1 со скриншотами!)
+ */
+function drawRubberTom() {
+    ctx.save();
+
+    // 1. ДВЕ ДЛИННЫЕ ЭЛАСТИЧНЫЕ СЕРЫЕ ЛАПЫ, тянущиеся от плитки-зацепа к Тому (как на скриншотах 3, 5, 7, 8, 10!)
+    if (tom.state === 'STUCK' && tom.attachedPin) {
+        const p = tom.attachedPin;
+        const stretchDist = Math.hypot(tom.x - p.x, tom.y - p.y);
+        // Чем сильнее тянешь Тома, тем тоньше и длиннее становятся его резиновые руки
+        const armWidth = Math.max(5.5, 10.5 - (stretchDist - 70) * 0.035);
+
+        // Падающая тень от длинных лап на стену каньона
+        ctx.strokeStyle = 'rgba(105, 58, 18, 0.28)';
+        ctx.lineWidth = armWidth + 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x - 10 + 5, p.y + 18 + 6);
+        ctx.lineTo(tom.x - 13 + 5, tom.y - 18 + 6);
+        ctx.moveTo(p.x + 10 + 5, p.y + 18 + 6);
+        ctx.lineTo(tom.x + 13 + 5, tom.y - 18 + 6);
+        ctx.stroke();
+
+        // Тёмный контур резиновых лап
+        ctx.strokeStyle = '#2d2926';
+        ctx.lineWidth = armWidth + 4.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 10, p.y + 18);
+        ctx.lineTo(tom.x - 13, tom.y - 18);
+        ctx.moveTo(p.x + 10, p.y + 18);
+        ctx.lineTo(tom.x + 13, tom.y - 18);
+        ctx.stroke();
+
+        // Основной серый цвет лап Тома
+        ctx.strokeStyle = '#73706c';
+        ctx.lineWidth = armWidth;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 10, p.y + 18);
+        ctx.lineTo(tom.x - 13, tom.y - 18);
+        ctx.moveTo(p.x + 10, p.y + 18);
+        ctx.lineTo(tom.x + 13, tom.y - 18);
+        ctx.stroke();
+    }
+
+    // 2. Переходим в координаты самого Тома
+    ctx.translate(tom.x, tom.y);
+
+    // Вычисляем наклон и жидкую резиновую деформацию (Squash & Stretch)
+    let rot = 0;
+    let sx = tom.jellyX;
+    let sy = tom.jellyY;
+
+    if (tom.state === 'STUCK' && tom.attachedPin) {
+        rot = -tom.swingAngle * 0.45;
+        if (drag.active) {
+            const pull = Math.hypot(drag.dx, drag.dy);
+            const ratio = Math.min(1, pull / MAX_PULL);
+            sx *= (1 - ratio * 0.14);
+            sy *= (1 + ratio * 0.18);
+        }
+    } else if (tom.state === 'FLYING') {
+        const spd = Math.hypot(tom.vx, tom.vy);
+        if (spd > 2.5) {
+            rot = Math.atan2(tom.vy, tom.vx) + Math.PI / 2;
+            const stretch = Math.min(0.24, spd * 0.012);
+            sy *= (1 + stretch);
+            sx *= (1 - stretch * 0.5);
+        }
+    } else if (tom.state === 'DEAD') {
+        rot = gameTime * 0.18;
+    }
+
+    ctx.rotate(rot);
+    ctx.scale(sx, sy);
+
+    // Падающая тень под телом и головой Тома
+    ctx.fillStyle = 'rgba(105, 58, 18, 0.3)';
+    ctx.beginPath();
+    ctx.arc(6, 12, 34, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Одетый вокруг Тома красно-белый Магнит-Щит (в точности как на скриншоте 3!)
+    if (tom.hasMagnetShield) {
+        ctx.save();
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 22;
+        ctx.beginPath();
+        ctx.arc(0, 12, 34, -Math.PI * 0.15, Math.PI * 1.15);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#dc2626';
+        ctx.lineWidth = 16;
+        ctx.beginPath();
+        ctx.arc(0, 12, 34, -Math.PI * 0.15, Math.PI * 1.15);
+        ctx.stroke();
+
+        // Белые наконечники магнита по бокам Тома
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(-41, 12, 15, 14, 3);
+        ctx.roundRect(26, 12, 15, 14, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // 4. Пухлое серое тельце со светлым животиком и задними лапками снизу головы
+    ctx.save();
+    ctx.fillStyle = '#6e6b66';
+    ctx.strokeStyle = '#2d2926';
+    ctx.lineWidth = 2.8;
+    // Туловище
+    ctx.beginPath();
+    ctx.ellipse(0, 26, 20, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Белый пузик
+    ctx.fillStyle = '#e5e5e5';
+    ctx.beginPath();
+    ctx.ellipse(0, 24, 12, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Задние лапки-ножки
+    ctx.fillStyle = '#6e6b66';
+    ctx.beginPath();
+    ctx.ellipse(-9, 41, 7.5, 9, 0.1, 0, Math.PI * 2);
+    ctx.ellipse(9, 41, 7.5, 9, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. Большие милые ушки с розовой серединкой
+    [
+        { dir: -1, x: -22, y: -22, rot: -0.35 },
+        { dir: 1, x: 22, y: -22, rot: 0.35 }
+    ].forEach(ear => {
+        ctx.save();
+        ctx.translate(ear.x, ear.y);
+        ctx.rotate(ear.rot);
+
+        // Внешнее серое ухо
+        ctx.fillStyle = '#7d7974';
+        ctx.strokeStyle = '#2d2926';
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(-12, 8);
+        ctx.quadraticCurveTo(0, -20, 12, 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Внутренний розовый треугольник ушка
+        ctx.fillStyle = '#f472b6';
+        ctx.beginPath();
+        ctx.moveTo(-7, 6);
+        ctx.quadraticCurveTo(0, -12, 7, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 6. Крупная 3D-голова Тома (с объёмным градиентом и пушистыми щёчками)
+    const headGrad = ctx.createRadialGradient(-8, -10, 6, 0, 0, 36);
+    headGrad.addColorStop(0, '#9e9a95');
+    headGrad.addColorStop(0.65, '#78746f');
+    headGrad.addColorStop(1, '#57534e');
+
+    ctx.fillStyle = headGrad;
+    ctx.strokeStyle = '#2d2926';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, -2, 34, 29, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Тёмные тигровые полоски на щёчках (по две с каждой стороны, как на скриншотах!)
+    ctx.fillStyle = '#3f3b37';
+    [
+        { x: -28, y: 2, r: 0.2 },
+        { x: -25, y: 9, r: 0.35 },
+        { x: 28, y: 2, r: -0.2 },
+        { x: 25, y: 9, r: -0.35 }
+    ].forEach(stripe => {
+        ctx.save();
+        ctx.translate(stripe.x, stripe.y);
+        ctx.rotate(stripe.r);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5.5, 2.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Светлые бровки над глазами
+    ctx.fillStyle = '#d6d3d1';
+    ctx.beginPath();
+    ctx.ellipse(-12, -16, 6, 2.5, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(12, -16, 6, 2.5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Светло-серая пухлая мордочка вокруг носика и рта
+    ctx.fillStyle = '#d6d3d1';
+    ctx.beginPath();
+    ctx.ellipse(0, 9, 15, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 7. БОЛЬШИЕ ВЫРАЗИТЕЛЬНЫЕ ИЗУМРУДНО-ЗЕЛЁНЫЕ ГЛАЗА ТОМА (точное сходство со скриншотами!)
+    const isBlinking = tom.blinkTimer < 0;
+    [-12, 12].forEach(ex => {
+        ctx.save();
+        ctx.translate(ex, -4);
+
+        if (tom.state === 'DEAD') {
+            ctx.strokeStyle = '#1e1b18';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-5, -5); ctx.lineTo(5, 5);
+            ctx.moveTo(5, -5);  ctx.lineTo(-5, 5);
+            ctx.stroke();
+        } else if (isBlinking) {
+            ctx.strokeStyle = '#2d2926';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-7, 0);
+            ctx.quadraticCurveTo(0, 4, 7, 0);
+            ctx.stroke();
+        } else {
+            // Белок глаза
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#2d2926';
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 8.2, 9.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            const lx = Math.max(-2.5, Math.min(2.5, tom.lookX));
+            const ly = Math.max(-2.5, Math.min(2.5, tom.lookY));
+
+            // Яркая изумрудно-зелёная радужка
+            const irisGrad = ctx.createRadialGradient(lx, ly - 2, 1, lx, ly, 6.2);
+            irisGrad.addColorStop(0, '#4ade80');
+            irisGrad.addColorStop(0.7, '#16a34a');
+            irisGrad.addColorStop(1, '#14532d');
+            ctx.fillStyle = irisGrad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Большой чёрный зрачок
+            ctx.fillStyle = '#09090b';
+            ctx.beginPath();
+            ctx.arc(lx, ly, 3.7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Живые двойные белые блики
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(lx - 2, ly - 2.4, 2, 0, Math.PI * 2);
+            ctx.arc(lx + 1.8, ly + 1.8, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    });
+
+    // 8. Милый розовый треугольный носик и добрая улыбка
+    const noseGrad = ctx.createLinearGradient(0, 2, 0, 9);
+    noseGrad.addColorStop(0, '#fb7185');
+    noseGrad.addColorStop(1, '#e11d48');
+    ctx.fillStyle = noseGrad;
+    ctx.beginPath();
+    ctx.moveTo(-5.5, 4);
+    ctx.quadraticCurveTo(0, 2.5, 5.5, 4);
+    ctx.quadraticCurveTo(0, 10.5, 0, 9.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Добрая кошачья улыбка
+    ctx.strokeStyle = '#3f3b37';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-7, 11.5);
+    ctx.quadraticCurveTo(0, 15.5, 7, 11.5);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+/**
+ * ПРИЦЕЛЬНАЯ ТРАЕКТОРИЯ ПРИ НАТЯЖЕНИИ РОГАТКИ
+ */
+function drawAimDots() {
+    if (!drag.active || tom.state !== 'STUCK') return;
+    const pull = Math.hypot(drag.dx, drag.dy);
+    if (pull < 18) return;
+
+    ctx.save();
+    let simX = tom.x;
+    let simY = tom.y;
+    let simVx = drag.dx * LAUNCH_POWER;
+    let simVy = drag.dy * LAUNCH_POWER;
+
+    for (let step = 1; step <= 24; step++) {
+        simVy += GRAVITY;
+        simVx *= AIR_DRAG;
+        simVy *= AIR_DRAG;
+        simX += simVx;
+        simY += simVy;
+
+        if (simX - tom.radius < WALL_W) {
+            simX = WALL_W + tom.radius;
+            simVx = Math.abs(simVx) * WALL_BOUNCE;
+        } else if (simX + tom.radius > W - WALL_W) {
+            simX = W - WALL_W - tom.radius;
+            simVx = -Math.abs(simVx) * WALL_BOUNCE;
+        }
+
+        if (step % 2 === 0) {
+            const alpha = (1 - step / 26) * 0.85;
+            const r = Math.max(2.5, 6.5 - step * 0.16);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.strokeStyle = `rgba(62, 32, 9, ${alpha * 0.6})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(simX, simY, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+}
+
+/**
+ * ГЛАВНЫЙ ЦИКЛ РЕНДЕРИНГА
+ */
+function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. Фон солнечного каньона, каменная кладка, трава, стены и лучи
+    drawCanyonBackground();
+
+    ctx.save();
+    ctx.translate(0, -cameraY);
+
+    // 2. Квадратные плитки-зацепы с лапками
+    pins.forEach(drawPinTile);
+
+    // 3. Крупные бонусы (Мешки и Магниты)
+    bonuses.forEach(drawBonusItem);
+
+    // 4. Огромные вестерн-препятствия (Колёса, Клинья, Балки)
+    obstacles.forEach(drawBigObstacle);
+
+    // 5. Точки траектории прицеливания
+    drawAimDots();
+
+    // 6. Резиновый Говорящий Том с длинными лапами
+    drawRubberTom();
+
+    // 7. Сочные частицы
+    particles.forEach(pt => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, pt.alpha);
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 8. Крупные всплывающие очки (как белая цифра "30" на скриншоте 4)
+    floatingTexts.forEach(ft => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.alpha);
+        ctx.font = `900 ${Math.round(28 * ft.scale)}px Rubik`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ft.color;
+        ctx.strokeStyle = 'rgba(62, 32, 9, 0.65)';
+        ctx.lineWidth = 4;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+    });
+
+    ctx.restore();
+}
+
+function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+/**
+ * ОБРАБОТЧИКИ КНОПОК ИНТЕРФЕЙСА
+ */
+document.getElementById('startBtn').addEventListener('click', () => {
+    sfx.init();
+    document.getElementById('startOverlay').classList.add('hidden');
+    gameState = 'PLAYING';
+    initGame();
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+    sfx.init();
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    gameState = 'PLAYING';
+    initGame();
+});
+
+document.getElementById('quickRestartBtn').addEventListener('click', () => {
+    sfx.init();
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    gameState = 'PLAYING';
+    initGame();
+});
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+    sfx.init();
+    const muted = sfx.toggleMute();
+    document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+});
+
+window.onload = function () {
+    initGame();
+    gameLoop();
+};
+</script>
+</body>
+</html>
