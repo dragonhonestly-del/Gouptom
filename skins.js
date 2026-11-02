@@ -125,6 +125,11 @@
             if (!this.selected[category]) return;
             this.selected[category] = id;
 
+            // Если выбрали фон/биома — сразу применяем через менеджер карт
+            if (category === 'bg' && window.BackgroundEngine && typeof window.BackgroundEngine.setBiome === 'function') {
+                window.BackgroundEngine.setBiome(id);
+            }
+
             // Кладём в память, чтобы выбор не сбрасывался при обновлении страницы
             const storageKeys = {
                 skins: 'tom_skin',
@@ -136,6 +141,7 @@
                 localStorage.setItem(storageKeys[category], id);
             }
         }
+
 
         /**
          * Получить конфиг активного скина
