@@ -67,6 +67,28 @@
                     hat: 'crown',
                     accessory: 'cape'
                 }
+            // Найти в skins.js блок this.skinCatalog и вставить в самый конец (после gold)
+                gold: {
+                    id: 'gold',
+                    name: 'Золото VIP',
+                    icon: '👑',
+                    fur: ['#fef08a', '#facc15', '#ca8a04'],
+                    belly: '#fffbeb',
+                    eyes: ['#a855f7', '#7e22ce', '#3b0764'],
+                    hat: 'crown',
+                    accessory: 'cape'
+                },
+                archer: {
+                    id: 'archer',
+                    name: 'Лучник',
+                    icon: '🏹',
+                    fur: ['#8f929a', '#7a7d85', '#57595e'], // Серый мех Тома под лучника
+                    belly: '#f0f2f5',
+                    eyes: ['#a3ff4d', '#399e1b', '#134705'], // Изумрудные глаза
+                    hat: 'archer_hood',                      // Идентификатор капюшона
+                    accessory: 'bow'                         // Идентификатор лука и колчана
+                }
+
             };
         }
 
