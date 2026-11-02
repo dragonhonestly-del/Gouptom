@@ -649,9 +649,8 @@ class MapManager {
         return this.engines[this.currentBiome];
     }
 
-    // Проксирующие методы, которые вызывают игру
+    // Проксирующие методы, которые вызывают активный биом
     init(W, H, WALL_W) {
-        Object.values(this.engines.canyon).constructor; // инициализация каждого при необходимости
         this.getActiveEngine().init(W, H, WALL_W);
     }
 
@@ -679,5 +678,5 @@ class MapManager {
     }
 }
 
-// Экспортируем под именем BackgroundEngine, чтобы координирующий игровой модуль (coordination.js) не сломался
+// Экспортируем под именем BackgroundEngine, чтобы координирующий игровой модуль не сломался
 window.BackgroundEngine = new MapManager();
